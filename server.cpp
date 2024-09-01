@@ -6,7 +6,6 @@
 #include <poll.h>
 
 #include "utils.h"
-#include "serverUtils.h"
 #include "constants.h"
 #include "eventloop.h"
 

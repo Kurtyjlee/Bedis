@@ -1,10 +1,5 @@
 #include <vector>
 #include "constants.h"
 
-#ifndef EVENTLOOP_H
-#define EVENTLOOP_H
-
 int32_t accept_new_conn(std::vector<Conn *> &, int);
 void connection_io(Conn *);
-
-#endif
