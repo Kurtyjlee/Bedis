@@ -2,6 +2,10 @@
 #include <iostream>
 #include <unistd.h>
 #include <cassert>
+#include <fcntl.h>
+#include <vector>
+
+#include "constants.h"
 
 /**
  * Kill the process with an error message
@@ -46,4 +50,27 @@ int32_t write_all(int fd, const char *buf, size_t n)
         buf += rv;
     }
     return 0;
+}
+
+/**
+ * Set this fd to nonblocking mode for our event loops
+ */
+void fd_set_nb(int fd)
+{
+    errno = 0;
+
+    // Retrieve the file status flags
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (errno)
+    {
+        die("fcntl error");
+        return;
+    }
+
+    flags |= O_NONBLOCK;
+
+    errno = 0;
+    (void)fcntl(fd, F_SETFL, flags);
+    if (errno)
+        die("fcntl error");
 }

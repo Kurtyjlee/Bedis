@@ -2,9 +2,13 @@
 #include <netinet/ip.h>
 #include <unistd.h>
 #include <iostream>
+#include <vector>
+#include <poll.h>
 
 #include "utils.h"
 #include "serverUtils.h"
+#include "constants.h"
+#include "eventloop.h"
 
 int main()
 {
@@ -31,24 +35,58 @@ int main()
     if (rv)
         die("listen()");
 
+    // map of all client connections, keyed by fd. 
+    // That is, the index is the fd and the item is the Conn
+    std::vector<Conn *> fd2conn;
+
+    fd_set_nb(fd);
+
+    // event loop
+    std::vector<struct pollfd> poll_args;
     while (true)
     {
-        // Accepting client connections
-        struct sockaddr_in client_addr = {};
-        socklen_t addrlen = sizeof(client_addr);
-        int connfd = accept(fd, (struct sockaddr *)&client_addr, &addrlen);
-        if (connfd < 0)
-            continue;
+        // reset
+        poll_args.clear();
 
-        // Serve 1 connection at a time
-        while (true)
+        // listening fd
+        struct pollfd pfd = {fd, POLLIN, 0};
+        poll_args.push_back(pfd);
+
+        // connection fds
+        for (Conn *conn : fd2conn)
         {
-            int32_t err = one_request(connfd);
-            if (err)
-                break;
-        }
-        close(connfd);
-    }
+            if (!conn)
+                continue;
 
+            struct pollfd pfd = {};
+            pfd.fd = conn->fd;
+            pfd.events = (conn->state == STATE_REQ) ? POLLIN : POLLOUT;
+            pfd.events = pfd.events | POLLERR;
+            poll_args.push_back(pfd);
+        }
+
+        // poll for active fds with a timeout
+        int rv = poll(poll_args.data(), (nfds_t)poll_args.size(), 1000);
+        if (rv < 0)
+            die("poll");
+
+        // process active connections, first fd is the listening fd
+        for (size_t i = 1; i < poll_args.size(); ++i)
+        {
+            if (!poll_args[i].revents) continue;
+
+            Conn *conn = fd2conn[poll_args[i].fd];
+            connection_io(conn);
+
+            if (conn->state != STATE_END) continue;
+
+            fd2conn[conn->fd] = NULL;
+            (void)close(conn->fd);
+            free(conn);
+        }
+        if (poll_args[0].revents) {
+            (void)accept_new_conn(fd2conn, fd);
+        }
+    }
     return 0;
 }
