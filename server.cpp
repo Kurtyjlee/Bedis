@@ -3,24 +3,8 @@
 #include <unistd.h>
 #include <iostream>
 
-#include "helper.h"
-
-static void do_something(int connfd)
-{
-    // read from client
-    char rbuf[64] = {};
-    ssize_t n = read(connfd, rbuf, sizeof(rbuf) - 1);
-    if (n < 0)
-    {
-        fprintf(stderr, "%s\n", "read() error");
-        return;
-    }
-    std::cout << "client says: " << rbuf << std::endl;
-
-    // write to client
-    std::string wbuf = "world";
-    write(connfd, wbuf.c_str(), wbuf.size());
-}
+#include "utils.h"
+#include "serverUtils.h"
 
 int main()
 {
@@ -52,12 +36,18 @@ int main()
         // Accepting client connections
         struct sockaddr_in client_addr = {};
         socklen_t addrlen = sizeof(client_addr);
-        int conndf = accept(fd, (struct sockaddr *)&client_addr, &addrlen);
-        if (conndf < 0)
+        int connfd = accept(fd, (struct sockaddr *)&client_addr, &addrlen);
+        if (connfd < 0)
             continue;
 
-        do_something(conndf);
-        close(conndf);
+        // Serve 1 connection at a time
+        while (true)
+        {
+            int32_t err = one_request(connfd);
+            if (err)
+                break;
+        }
+        close(connfd);
     }
 
     return 0;

@@ -3,8 +3,13 @@
 #include <netinet/ip.h>
 #include <string>
 #include <iostream>
-#include "helper.h"
 
+#include "utils.h"
+#include "clientUtils.h"
+
+/**
+ * Client to communicate with server using TCP
+ */
 int main()
 {
     // TCP socket
@@ -22,16 +27,12 @@ int main()
     if (rv)
         die("connect");
 
-    // write to server
-    std::string msg = "hello";
-    write(fd, msg.c_str(), msg.size());
-
-    // read from server
-    char rbuf[64] = {};
-    ssize_t n = read(fd, rbuf, sizeof(rbuf) - 1);
-    if (n < 0)
-        die("read");
-
-    std::cout << "server says: " << rbuf << std::endl;
+    // Requests
+    std::string requests[] = {"hello1", "hello2", "hello3"};
+    for (std::string req : requests)
+    {
+        if (query(fd, req.c_str()))
+            break;
+    }
     close(fd);
 }
