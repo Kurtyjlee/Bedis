@@ -13,7 +13,7 @@
 /**
  * Client to communicate with server using TCP
  */
-int main()
+int main(int argc, char **argv)
 {
     // TCP socket
     int fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -31,26 +31,20 @@ int main()
         die("connect");
 
     // Requests
-    std::vector<std::string> requests = {"hello1", "hello2", "hello3"};
-    int num_count = 3;
-    for (int count = 0; count < num_count; count++)
-    {
-        for (std::string req : requests)
-        {
-            if (send_req(fd, req.c_str()))
-                break;
-        }
-
-        // Response
-        for (int i = 0; i < requests.size(); i++)
-        {
-            if (read_res(fd))
-                break;
-        }
-
-        std::this_thread::sleep_for(std::chrono::seconds(2));
+    std::vector<std::string> cmd;
+    for (int i = 1; i < argc; ++i) {
+        cmd.push_back(argv[i]);
+    }
+    int32_t err = send_req(fd, cmd);
+    if (err) {
+        goto L_DONE;
+    }
+    err = read_res(fd);
+    if (err) {
+        goto L_DONE;
     }
 
+L_DONE:
     close(fd);
     return 0;
 }

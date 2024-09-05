@@ -5,6 +5,7 @@
 
 #include "constants.h"
 #include "utils.h"
+#include "commands.h"
 
 /**
  * Insert the connection into the fd map
@@ -94,6 +95,7 @@ bool try_flush_buffer(Conn *conn)
 
 /**
  * Will flush the write buffer till EAGAIN
+ * TODO: Instead of writing for every response, buffer multiple response and flush together
  */
 void state_res(Conn *conn)
 {
@@ -104,37 +106,50 @@ void state_res(Conn *conn)
 
 /**
  * Takes 1 request from the buffer, generates a response then transits to STATE_RES
+ * we have a request of
+ * +------+-----+------+-----+------+-----+-----+------+
+ * | nstr | len | str1 | len | str2 | ... | len | strn |
+ * +------+-----+------+-----+------+-----+-----+------+
+ * Where nstr and len are 32-bit integers
  */
 bool try_one_request(Conn *conn)
 {
-    // check if there is enough data in buffer
+    // try to parse a request from the buffer
     if (conn->rbuf_size < 4)
         return false;
 
-    // Checking the header
     uint32_t len = 0;
     memcpy(&len, &conn->rbuf[0], 4);
     if (len > K_MAX_MSG)
     {
-        std::cerr << "message is too long" << std::endl;
+        msg("too long");
         conn->state = STATE_END;
         return false;
     }
 
     // Not enough data in the buffer
     if (4 + len > conn->rbuf_size)
+        return false;
+
+    // got one request, generate the response.
+    uint32_t rescode = 0;
+    uint32_t wlen = 0;
+    int32_t err = do_request(
+        &conn->rbuf[4], len, &rescode, &conn->wbuf[8], &wlen);
+    if (err)
     {
+        conn->state = STATE_END;
         return false;
     }
 
-    std::cout << "client says: " << &conn->rbuf[4] << std::endl;
+    wlen += 4;
+    memcpy(&conn->wbuf[0], &wlen, 4);
+    memcpy(&conn->wbuf[4], &rescode, 4);
+    conn->wbuf_size = 4 + wlen;
 
-    // Echoing response
-    memcpy(&conn->wbuf[0], &len, 4);
-    memcpy(&conn->wbuf[4], &conn->rbuf[4], len);
-    conn->wbuf_size = 4 + len;
-
-    // remove request from buffer, memmove is inefficient
+    // remove the request from the buffer.
+    // note: frequent memmove is inefficient.
+    // TODO: Only do this before read operations
     size_t remain = conn->rbuf_size - 4 - len;
     if (remain)
         memmove(conn->rbuf, &conn->rbuf[4 + len], remain);
@@ -144,6 +159,7 @@ bool try_one_request(Conn *conn)
     conn->state = STATE_RES;
     state_res(conn);
 
+    // continue the outer loop if the request was fully processed
     return conn->state == STATE_REQ;
 }
 
@@ -195,7 +211,7 @@ bool try_fill_buffer(Conn *conn)
     while (try_one_request(conn))
     {
     };
-    return conn->state = STATE_REQ;
+    return conn->state == STATE_REQ;
 }
 
 /**

@@ -13,6 +13,13 @@ enum
     STATE_END = 3,
 };
 
+enum
+{
+    RES_OK = 0,
+    RES_ERR = 1,
+    RES_NX = 2,
+};
+
 struct Conn
 {
     int fd = -1;

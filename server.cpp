@@ -65,6 +65,7 @@ int main()
         }
 
         // poll for active fds with a timeout
+        // TODO: try out epollq
         int rv = poll(poll_args.data(), (nfds_t)poll_args.size(), 1000);
         if (rv < 0)
             die("poll");

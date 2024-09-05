@@ -74,3 +74,7 @@ void fd_set_nb(int fd)
     if (errno)
         die("fcntl error");
 }
+
+void msg(const char *msg) {
+    std::cerr << msg << std::endl;
+}
